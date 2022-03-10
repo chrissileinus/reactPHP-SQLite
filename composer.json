@@ -1,0 +1,17 @@
+{
+    "name": "chrissileinus/reactphp-sqlite",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Chrissileinus\\ReactphpSqlite\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "chrissileinus",
+            "email": "chrissileinus@googlemail.com"
+        }
+    ],
+    "require": {}
+}
