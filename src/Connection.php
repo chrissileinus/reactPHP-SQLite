@@ -12,7 +12,7 @@ namespace Chrissileinus\React\SQLite;
 use Clue\React\SQLite;
 
 /**
- * A single React\MySQL connection
+ * A single React\SQLite connection
  */
 class Connection implements \Evenement\EventEmitterInterface
 {
@@ -36,7 +36,7 @@ class Connection implements \Evenement\EventEmitterInterface
     });
     $this->connection->exec('PRAGMA journal_mode = WAL;');
     $this->connection->exec('PRAGMA synchronous = NORMAL;');
-    $this->connection->query('PRAGMA database_list;');
+    $this->connection->exec('PRAGMA busy_timeout = 5000;');
   }
 
   public function query($sql, $params = []): \React\Promise\PromiseInterface
@@ -52,6 +52,11 @@ class Connection implements \Evenement\EventEmitterInterface
         throw $th;
       }
     );
+  }
+
+  public function ping()
+  {
+    return $this->connection->query('PRAGMA encoding');
   }
 
   public function quit()

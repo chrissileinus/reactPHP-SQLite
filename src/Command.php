@@ -10,69 +10,13 @@
 namespace Chrissileinus\React\SQLite;
 
 /**
- * A pool of React\MySQL connections with additional commandset like Query, Insert.....
+ * A pool of React\SQLite connections with additional commandset like Query, Insert.....
  */
-class Command
+class Command extends Pool
 {
-  static private Connection $connection;
-
-  /**
-   * Initialize the connections
-   *
-   * @param  string $uri
-   * @param  int    $poolSize
-   * @param  [type] $connectionSelector
-   * @return void
-   */
-  static function init(string $dbFile, callable $onError = null, string $schemaFile = null)
-  {
-    $dbFileExist = !file_exists($dbFile);
-
-    self::$connection = new Connection($dbFile, $onError);
-
-    if ($dbFileExist && $schemaFile && file_exists($schemaFile)) {
-      $sqlque = explode(";", preg_replace(
-        [
-          "/ ENGINE=\w+/",
-          "/--.*\n/",
-          "/\n/",
-          "/, +UNIQUE KEY[^\(]+\([^\)]+\)/",
-          "/, +KEY[^\(]+\([^\)]+\)/",
-          "/ AUTO_INCREMENT=\d+/",
-          "/ AUTO_INCREMENT/",
-        ],
-        "",
-        file_get_contents($schemaFile)
-      ));
-      $sqlque = array_filter($sqlque, function ($entry) {
-        return !!strlen($entry);
-      });
-
-      foreach ($sqlque as $sql) {
-        self::query($sql)->then(function (\Clue\React\SQLite\Result $result) {
-          echo "Query {$result->insertId} OK, {$result->changed} row(s) changed" . PHP_EOL;
-        });
-      }
-    }
-  }
-
   static function ping(): \React\Promise\PromiseInterface
   {
     return self::query('PRAGMA encoding');
-  }
-
-  /**
-   * Performs an async query.
-   * 
-   * This method returns a promise that will resolve with a `QueryResult` on
-   * success or will reject with an `Exception` on error. 
-   *
-   * @param  string                          $query
-   * @return \React\Promise\PromiseInterface
-   */
-  static function query(string $sql): \React\Promise\PromiseInterface
-  {
-    return self::$connection->query($sql);
   }
 
   /**
