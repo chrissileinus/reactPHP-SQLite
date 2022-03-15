@@ -19,19 +19,26 @@ class Command extends Pool
     return self::query('PRAGMA encoding');
   }
 
+  protected static function tableName($table): string
+  {
+    if (is_string($table)) return "`{$table}`";
+    if (is_array($table)) return "`{$table[0]}`.`{$table[1]}`";
+  }
+
   /**
    * Prepare a insert statment and performs an async query.
    * 
    * This method returns a promise that will resolve with a `QueryResult` on
    * success or will reject with an `Exception` on error. 
    *
-   * @param  string                          $table   Table name
+   * @param  string|array                    $table   Table name or Array(database, tableName)
    * @param  array                           $inserts A array with associative arrays with matching keys and values
    * @param  array|null                      $indexes A array of indexes to perform "ON DUPLICATE KEY UPDATE"
    * @return \React\Promise\PromiseInterface
    */
-  static function insert(string $table, array $inserts, array $indexes = null): \React\Promise\PromiseInterface
+  static function insert($table, array $inserts, array $indexes = null): \React\Promise\PromiseInterface
   {
+    $table = self::tableName($table);
     if (array_depth($inserts) < 2) $inserts = [$inserts];
 
     $fields = (function () use ($inserts) {
@@ -68,7 +75,7 @@ class Command extends Pool
       return "\n ON CONFLICT(" . implode(", ", $indexes) . ")\n DO UPDATE SET\n" . implode(",\n ", $t);
     })();
 
-    $query = "INSERT\n INTO `{$table}`\n ( {$fields} )\n VALUES\n {$values}{$updates};";
+    $query = "INSERT\n INTO {$table}\n ( {$fields} )\n VALUES\n {$values}{$updates};";
 
     // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
@@ -80,14 +87,15 @@ class Command extends Pool
    * This method returns a promise that will resolve with a `QueryResult` on
    * success or will reject with an `Exception` on error. 
    *
-   * @param  string                          $table Table name
+   * @param  string|array                    $table   Table name or Array(database, tableName)
    * @param  array                           $set   A associative arrays with matching keys and values
    * @param  array                           $where
    * @param  int|array                       $limit A int as limit or a array like [int offset, int limit]
    * @return \React\Promise\PromiseInterface
    */
-  static function update(string $table, array $set, array $where, $limit = null): \React\Promise\PromiseInterface
+  static function update($table, array $set, array $where, $limit = null): \React\Promise\PromiseInterface
   {
+    $table = self::tableName($table);
     $sqlWhere = self::genWhere($where);
     $sqlLimit = self::genLimit($limit);
 
@@ -104,7 +112,7 @@ class Command extends Pool
       return implode(",\n  ", $t);
     })();
 
-    $query = "UPDATE `{$table}`\n SET\n  {$sqlSets}{$sqlWhere}{$sqlLimit};";
+    $query = "UPDATE {$table}\n SET\n  {$sqlSets}{$sqlWhere}{$sqlLimit};";
 
     // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
@@ -116,17 +124,18 @@ class Command extends Pool
    * This method returns a promise that will resolve with a `QueryResult` on
    * success or will reject with an `Exception` on error. 
    *
-   * @param  string                          $table Table name
+   * @param  string|array                    $table   Table name or Array(database, tableName)
    * @param  array                           $where 
    * @param  int|array                       $limit A int as limit or a array like [int offset, int limit]
    * @return \React\Promise\PromiseInterface
    */
-  static function delete(string $table, array $where, $limit = null): \React\Promise\PromiseInterface
+  static function delete($table, array $where, $limit = null): \React\Promise\PromiseInterface
   {
+    $table = self::tableName($table);
     $sqlWhere = self::genWhere($where);
     $sqlLimit = self::genLimit($limit);
 
-    $query = "DELETE\n FROM `{$table}`{$sqlWhere}{$sqlLimit};";
+    $query = "DELETE\n FROM {$table}{$sqlWhere}{$sqlLimit};";
 
     // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
@@ -138,15 +147,17 @@ class Command extends Pool
    * This method returns a promise that will resolve with a `QueryResult` on
    * success or will reject with an `Exception` on error. 
    *
-   * @param  string                          $table  Table name
+   * @param  string|array                    $table   Table name or Array(database, tableName)
    * @param  string|array                    $fields A array of selected Fields or "*"
    * @param  array|null                      $where
    * @param  string|array                    $order
    * @param  int|array                       $limit  A int as limit or a array like [int offset, int limit]
    * @return \React\Promise\PromiseInterface
    */
-  static function select(string $table, $fields = null, array $where = null, $order = null, $limit = null): \React\Promise\PromiseInterface
+  static function select($table, $fields = null, array $where = null, $order = null, $limit = null): \React\Promise\PromiseInterface
   {
+    $table = self::tableName($table);
+
     $sqlFields = (function () use ($fields) {
       if (is_string($fields)) return "`{$fields}`";
       if (is_array($fields)) return implode(", ", array_map(function ($field) {
@@ -175,7 +186,7 @@ class Command extends Pool
 
     $sqlLimit = self::genLimit($limit);
 
-    $query = "SELECT {$sqlFields}\n FROM `{$table}`{$sqlWhere}{$sqlOrder}{$sqlLimit};";
+    $query = "SELECT {$sqlFields}\n FROM {$table}{$sqlWhere}{$sqlOrder}{$sqlLimit};";
 
     // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);

@@ -21,7 +21,7 @@ class Pool
   private static $poolSize;
   private static $poolPointer = 0;
   private static $poolRequestCounter = [];
-  private static $poolConnectionSelector;
+  private static $poolConnectionSelector = self::CS_BY_LOAD;
 
   /**
    * Initialize the connections
@@ -38,12 +38,12 @@ class Pool
     self::$poolSize = $poolSize;
     self::$poolConnectionSelector = $connectionSelector;
 
-    $dbFileExist = !file_exists($dbFile);
+    $dbFileExist = file_exists($dbFile);
 
     self::$pool[0] = new Connection($dbFile, $onError);
     self::$poolRequestCounter[0] = 0;
 
-    if ($dbFileExist && $schemaFile && file_exists($schemaFile)) {
+    if (!$dbFileExist && $schemaFile && file_exists($schemaFile)) {
       $sqlque = explode(";", preg_replace(
         [
           "/ ENGINE=\w+/",
@@ -74,6 +74,14 @@ class Pool
       self::$pool[$p] = new Connection($dbFile, $onError);
       self::$poolRequestCounter[$p] = 0;
     }
+  }
+
+  static function statistic(): array
+  {
+    return [
+      'size' => self::$poolSize,
+      'counter' => self::$poolRequestCounter,
+    ];
   }
 
   static private function shiftPointer()
