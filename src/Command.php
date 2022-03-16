@@ -16,7 +16,10 @@ class Command extends Pool
 {
   static function ping(): \React\Promise\PromiseInterface
   {
-    return self::query('PRAGMA encoding');
+    $time = microtime(true);
+    return self::query('PRAGMA encoding')->then(function () use ($time) {
+      return microtime(true) - $time;
+    });
   }
 
   protected static function tableName($table): string
@@ -43,7 +46,7 @@ class Command extends Pool
 
     $fields = (function () use ($inserts) {
       $t = [];
-      foreach (array_keys($inserts[0]) as $key => $field) {
+      foreach (array_keys($inserts[0]) as $field) {
         $t[] = "`{$field}`";
       }
       return implode(", ", $t);
@@ -53,7 +56,7 @@ class Command extends Pool
       $t = [];
       foreach ($inserts as $entry) {
         $tt = [];
-        foreach (array_values($entry) as $key => $value) {
+        foreach (array_values($entry) as $value) {
           $tt[] = quote($value);
         }
         $tt = implode(", ", $tt);
