@@ -10,7 +10,6 @@
 namespace Chrissileinus\React\SQLite;
 
 use Clue\React\SQLite;
-use SQLite3;
 
 /**
  * A single React\SQLite connection

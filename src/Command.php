@@ -80,7 +80,6 @@ class Command extends Pool
 
     $query = "INSERT\n INTO {$table}\n ( {$fields} )\n VALUES\n {$values}{$updates};";
 
-    // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
   }
 
@@ -117,7 +116,6 @@ class Command extends Pool
 
     $query = "UPDATE {$table}\n SET\n  {$sqlSets}{$sqlWhere}{$sqlLimit};";
 
-    // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
   }
 
@@ -140,7 +138,6 @@ class Command extends Pool
 
     $query = "DELETE\n FROM {$table}{$sqlWhere}{$sqlLimit};";
 
-    // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
   }
 
@@ -191,7 +188,6 @@ class Command extends Pool
 
     $query = "SELECT {$sqlFields}\n FROM {$table}{$sqlWhere}{$sqlOrder}{$sqlLimit};";
 
-    // \Chrissileinus\React\Log\Writer::debug("SQL:" . PHP_EOL . $query, 'DataBase');
     return self::query($query);
   }
 

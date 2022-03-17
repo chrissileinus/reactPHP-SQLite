@@ -13,5 +13,10 @@
             "email": "chrissileinus@googlemail.com"
         }
     ],
-    "require": {}
+    "require": {
+        "react/promise": "^2.9",
+        "evenement/evenement": "^3.0",
+        "clue/reactphp-sqlite": "^1.5",
+        "react/async": "^3@dev"
+    }
 }
