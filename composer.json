@@ -4,7 +4,7 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Chrissileinus\\ReactphpSqlite\\": "src/"
+            "Chrissileinus\\React\\Sqlite\\": "src/"
         }
     },
     "authors": [
