@@ -14,6 +14,7 @@
         }
     ],
     "require": {
+        "php": ">=7.4",
         "react/promise": "^2.9",
         "evenement/evenement": "^3.0",
         "clue/reactphp-sqlite": "^1.5",
