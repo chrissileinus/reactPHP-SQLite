@@ -57,7 +57,7 @@ class Command extends Pool
       foreach ($inserts as $entry) {
         $tt = [];
         foreach (array_values($entry) as $value) {
-          $tt[] = quote($value);
+          $tt[] = tools::quote($value);
         }
         $tt = implode(", ", $tt);
 
@@ -109,7 +109,7 @@ class Command extends Pool
           continue;
         }
 
-        $t[] = "`{$key}` = " . quote($value);
+        $t[] = "`{$key}` = " . tools::quote($value);
       }
       return implode(",\n  ", $t);
     })();
@@ -139,6 +139,28 @@ class Command extends Pool
     $query = "DELETE\n FROM {$table}{$sqlWhere}{$sqlLimit};";
 
     return self::query($query);
+  }
+
+  /**
+   * Prepare a count statment and performs an async query.
+   *
+   * @param  string|array                    $table   Table name or Array(database, tableName)
+   * @param  array|null                      $where
+   * @return \React\Promise\PromiseInterface
+   */
+  static function count($table, array $where = null): \React\Promise\PromiseInterface
+  {
+    $table = self::tableName($table);
+
+    $sqlWhere = self::genWhere($where);
+
+    $query = "SELECT COUNT(*) FROM {$table}{$sqlWhere};";
+
+    return self::query($query)->then(
+      function ($command) {
+        return $command->rows[0]['COUNT(*)'];
+      }
+    );
   }
 
   /**
@@ -201,7 +223,13 @@ class Command extends Pool
       if (preg_match("/^(?<name>[^\[\]]+)(?:\[(?<condition>.+)\]){0,1}$/", $key, $match)) {
         extract($match);
         $condition = isset($condition) ? $condition : "=";
-        return " `{$name}` {$condition} " . quote($value);
+        if ($condition == 'IN') {
+          foreach ($value as &$entry) {
+            $entry = tools::quote($entry);
+          }
+          return " `{$name}` IN (" . implode(", ", $value) . ")";
+        }
+        return " `{$name}` {$condition} " . tools::quote($value);
       }
     };
 
@@ -227,7 +255,7 @@ class Command extends Pool
     foreach ($where as $key => $value) {
       if (!$first) $return .= " {$condition}";
 
-      if (is_array($value)) {
+      if (is_array($value) && !array_is_list($value)) {
         if ($key == 'AND' || $key == 'OR') {
           $return .= self::genWhere([$key => $value], true);
           $first = false;
@@ -252,7 +280,7 @@ class Command extends Pool
       $limit = array_filter($limit, 'is_int', ARRAY_FILTER_USE_KEY);
       if (count($limit) == 1) $limit = $limit[0];
 
-      if (count($limit) > 1) return "\n LIMIT {$limit[0]} {$limit[1]}";
+      if (count($limit) > 1) return "\n LIMIT {$limit[1]} OFFSET {$limit[0]}";
     }
 
     if (is_int($limit)) return "\n LIMIT {$limit}";
