@@ -28,6 +28,9 @@ class Command extends Pool
     if (is_array($table)) return "`{$table[0]}`.`{$table[1]}`";
   }
 
+  const onConflictIgnore = 'ignore';
+  const onConflictUpdate = 'update';
+
   /**
    * Prepare a insert statment and performs an async query.
    * 
@@ -37,9 +40,10 @@ class Command extends Pool
    * @param  string|array                    $table   Table name or Array(database, tableName)
    * @param  array                           $inserts A array with associative arrays with matching keys and values
    * @param  array|null                      $indexes A array of indexes to perform "ON DUPLICATE KEY UPDATE"
+   * @param  string                          $onConflict 'ignore' or 'update'
    * @return \React\Promise\PromiseInterface
    */
-  static function insert($table, array $inserts, array $indexes = null): \React\Promise\PromiseInterface
+  static function insert($table, array $inserts, array $indexes = null, $onConflict = self::onConflictUpdate): \React\Promise\PromiseInterface
   {
     $table = self::tableName($table);
     if (array_depth($inserts) < 2) $inserts = [$inserts];
@@ -66,8 +70,10 @@ class Command extends Pool
       return implode(",\n ", $t);
     })();
 
-    $updates = (function () use ($inserts, $indexes) {
+    $updates = (function () use ($inserts, $indexes, $onConflict) {
       if (!$indexes || !count($indexes)) return "";
+
+      if ($onConflict != self::onConflictUpdate) return "\n ON CONFLICT(" . implode(", ", $indexes) . ")\n DO NOTHING";
 
       $t = [];
       foreach (array_keys($inserts[0]) as $field) {
@@ -75,6 +81,7 @@ class Command extends Pool
           $t[] = "`{$field}` = excluded.{$field}";
         }
       }
+
       return "\n ON CONFLICT(" . implode(", ", $indexes) . ")\n DO UPDATE SET\n" . implode(",\n ", $t);
     })();
 
