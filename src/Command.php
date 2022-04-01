@@ -96,13 +96,7 @@ class Command extends Pool
 
     $query = "INSERT\n INTO {$table}\n ( {$fields} )\n VALUES\n {$values}{$updates};";
 
-    $countInserts = is_array($inserts) ? count($inserts) : 0;
-
-    return self::query($query)->then(function ($result) use ($query, $countInserts) {
-      if ($countInserts != $result->changed) var_dump([$countInserts, $result->changed, $query, $result]);
-
-      return $result;
-    });
+    return self::query($query);
   }
 
   /**
