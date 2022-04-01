@@ -28,9 +28,6 @@ class Command extends Pool
     if (is_array($table)) return "`{$table[0]}`.`{$table[1]}`";
   }
 
-  const onConflictIgnore = 'ignore';
-  const onConflictUpdate = 'update';
-
   /**
    * Prepare a insert statment and performs an async query.
    * 
@@ -40,10 +37,10 @@ class Command extends Pool
    * @param  string|array                    $table   Table name or Array(database, tableName)
    * @param  array                           $inserts A array with associative arrays with matching keys and values
    * @param  array|null                      $indexes A array of indexes to perform "ON DUPLICATE KEY UPDATE"
-   * @param  string                          $onConflict 'ignore' or 'update'
+   * @param  onConflict                      $onConflict 'ignore' or 'update'
    * @return \React\Promise\PromiseInterface
    */
-  static function insert($table, array $inserts, array $indexes = null, $onConflict = self::onConflictUpdate): \React\Promise\PromiseInterface
+  static function insert($table, array $inserts, array $indexes = null, onConflict $onConflict = onConflict::Update): \React\Promise\PromiseInterface
   {
     $table = self::tableName($table);
     if (array_depth($inserts) < 2) $inserts = [$inserts];
@@ -71,23 +68,41 @@ class Command extends Pool
     })();
 
     $updates = (function () use ($inserts, $indexes, $onConflict) {
-      if (!$indexes || !count($indexes)) return "";
-
-      if ($onConflict != self::onConflictUpdate) return "\n ON CONFLICT(" . implode(", ", $indexes) . ")\n DO NOTHING";
-
-      $t = [];
-      foreach (array_keys($inserts[0]) as $field) {
-        if (array_search($field, $indexes) === false) {
-          $t[] = "`{$field}` = excluded.{$field}";
-        }
+      if (!$indexes || !count($indexes)) {
+        return "";
       }
 
-      return "\n ON CONFLICT(" . implode(", ", $indexes) . ")\n DO UPDATE SET\n" . implode(",\n ", $t);
+      $return = "\n ON CONFLICT(" . implode(", ", $indexes) . ")\n ";
+
+      switch ($onConflict) {
+        case onConflict::Nothing:
+        case onConflict::Ignore:
+          return $return . "DO NOTHING";
+
+        case onConflict::Update:
+          $t = [];
+          foreach (array_keys($inserts[0]) as $field) {
+            if (array_search($field, $indexes) === false) {
+              $t[] = "`{$field}` = excluded.{$field}";
+            }
+          }
+
+          return $return . "DO UPDATE SET\n" . implode(",\n ", $t);
+
+        default:
+          return "";
+      }
     })();
 
     $query = "INSERT\n INTO {$table}\n ( {$fields} )\n VALUES\n {$values}{$updates};";
 
-    return self::query($query);
+    $countInserts = is_array($inserts) ? count($inserts) : 0;
+
+    return self::query($query)->then(function ($result) use ($query, $countInserts) {
+      if ($countInserts != $result->changed) var_dump([$countInserts, $result->changed, $query, $result]);
+
+      return $result;
+    });
   }
 
   /**
