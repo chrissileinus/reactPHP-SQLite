@@ -33,14 +33,14 @@ class Pool
    * @param  string|null   $schemaFile
    * @return void
    */
-  static function init(string $dbFile, int $poolSize = 5, string $connectionSelector = self::CS_BY_LOAD, callable $onError = null, string $schemaFile = null)
+  static function init(string $dbFile, int $poolSize = 5, string $connectionSelector = self::CS_BY_LOAD, callable $onError = null, string $schemaFile = null, array $pragma = [])
   {
     self::$poolSize = $poolSize;
     self::$poolConnectionSelector = $connectionSelector;
 
     $dbFileExist = file_exists($dbFile);
 
-    self::$pool[0] = new Connection($dbFile, $onError);
+    self::$pool[0] = new Connection($dbFile, $onError, $pragma);
     self::$poolRequestCounter[0] = 0;
 
     if (!$dbFileExist && $schemaFile && file_exists($schemaFile)) {
@@ -71,7 +71,7 @@ class Pool
     }
 
     for ($p = 1; $p < self::$poolSize; $p++) {
-      self::$pool[$p] = new Connection($dbFile, $onError);
+      self::$pool[$p] = new Connection($dbFile, $onError, $pragma);
       self::$poolRequestCounter[$p] = 0;
     }
   }

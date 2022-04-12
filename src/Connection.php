@@ -21,6 +21,15 @@ class Connection implements \Evenement\EventEmitterInterface
   protected $connection;
   protected $onError;
 
+  const PRAGMAdefault = [
+    'journal_mode' => 'WAL',
+    'journal_size_limit' => '1000',
+    'synchronous' => 'NORMAL',
+    'busy_timeout' => '60000',
+    'temp_store' => 'memory',
+    'mmap_size' => '30000000000',
+  ];
+
   function __construct(string $dbFile, callable $onError = null, array $pragma = [])
   {
     $this->onError = $onError;
@@ -35,12 +44,10 @@ class Connection implements \Evenement\EventEmitterInterface
       $this->emit('close');
     });
 
-    $pragma['journal_mode']        ??= 'WAL';
-    $pragma['journal_size_limit']  ??= '1000';
-    $pragma['synchronous']         ??= 'NORMAL';
-    $pragma['busy_timeout']        ??= '5000';
-    $pragma['temp_store']          ??= 'memory';
-    $pragma['mmap_size']           ??= '30000000000';
+    if (!$pragma) $pragma = [];
+    foreach (self::PRAGMAdefault as $key => $value) {
+      $pragma[$key] ??= $value;
+    }
 
     foreach ($pragma as $name => $value) {
       $this->connection->exec("PRAGMA {$name} = {$value};");
