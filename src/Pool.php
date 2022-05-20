@@ -22,6 +22,7 @@ class Pool
   private static $poolPointer = 0;
   private static $poolRequestCounter = [];
   private static $poolConnectionSelector = self::CS_BY_LOAD;
+  private static $onEvent = null;
 
   /**
    * Initialize the connections
@@ -33,18 +34,102 @@ class Pool
    * @param  string|null   $schemaFile
    * @return void
    */
-  static function init(string $dbFile, int $poolSize = 5, string $connectionSelector = self::CS_BY_LOAD, callable $onError = null, string $schemaFile = null, array $pragma = [])
+  static function init(string $dbFile, int $poolSize = 5, string $connectionSelector = self::CS_BY_LOAD, callable $onEvent = null, callable $onError = null, string $schemaFile = null, array $pragma = [])
   {
     self::$poolSize = $poolSize;
     self::$poolConnectionSelector = $connectionSelector;
+
+    self::$onEvent = $onEvent;
 
     $dbFileExist = file_exists($dbFile);
 
     self::$pool[0] = new Connection($dbFile, $onError, $pragma);
     self::$poolRequestCounter[0] = 0;
 
-    if (!$dbFileExist && $schemaFile && file_exists($schemaFile)) {
-      $sqlque = explode(";", preg_replace(
+    // Create Database
+    if (!$dbFileExist) {
+      \React\Async\await(self::createFromSchema($schemaFile));
+    }
+
+    self::upgradeFromSchema($schemaFile);
+
+    for ($p = 1; $p < self::$poolSize; $p++) {
+      self::$pool[$p] = new Connection($dbFile, $onError, $pragma);
+      self::$poolRequestCounter[$p] = 0;
+    }
+  }
+
+  static private function createFromSchema(string $schemaFile)
+  {
+    if (!$schemaFile) {
+      throw new \Exception("No Schema provided", 1);
+    }
+    if (!file_exists($schemaFile)) {
+      throw new \Exception("Schema '{$schemaFile}' not found", 1);
+    }
+
+    $sqlQueFile = self::sqlQueFromSchemaFile($schemaFile);
+
+    self::onEvent("Create new database with schema '{$schemaFile}'");
+
+    $promises = [];
+    foreach ($sqlQueFile as $sql) {
+      preg_match('/CREATE TABLE.+`(?<name>\w+)`\s+\(/', tools::trimSql($sql), $matches);
+      $name = $matches['name'];
+      $promises[] = self::$pool[0]->query($sql)->then(function () use ($name) {
+        self::onEvent("Created new Table '{$name}'");
+      });
+    }
+    $schemaFileMtime = filemtime($schemaFile);
+    $promises[] = self::$pool[0]->query("PRAGMA user_version = {$schemaFileMtime}");
+    return \React\Promise\all($promises);
+  }
+
+  static function upgradeFromSchema(string $schemaFile)
+  {
+    if ($schemaFile && file_exists($schemaFile)) {
+      $currentSchemaVersion = self::getPragma("user_version");
+      $schemaFileMtime = filemtime($schemaFile);
+
+      if ($currentSchemaVersion == $schemaFileMtime) {
+        self::onEvent("Current schema is up to date");
+        return;
+      }
+
+      return; // do nothing more at the moment.
+
+      $sqlQueFile = self::sqlQueFromSchemaFile($schemaFile);
+
+      $sqlQueCurrent = self::sqlQueFromCurrentSchema();
+
+      $promises = [];
+      foreach ($sqlQueFile as $newSql) {
+        $newSqlTrimed = tools::trimSql($newSql);
+        if (!in_array($newSqlTrimed, $sqlQueCurrent) && preg_match('/CREATE TABLE.+`(?<name>\w+)`\s+\(/', $newSqlTrimed, $matches)) {
+          $name = $matches['name'];
+
+          var_dump([$name, $newSql]);
+
+          if (!isset($sqlQueCurrent[$name])) {
+            $promises[] = self::$pool[0]->query($newSql)->then(function (\Clue\React\SQLite\Result $result) use ($name) {
+              self::onEvent("Created new Table '{$name}'");
+            });
+          } else {
+            self::onEvent("Upgrade existing Table '{$name}' starting...");
+            self::onEvent("Upgrade existing Table '{$name}' finnished!");
+          }
+        }
+      }
+      return \React\Async\await(\React\Promise\all($promises));
+    }
+  }
+
+  static private function sqlQueFromSchemaFile(string $schemaFile)
+  {
+    if (!file_exists($schemaFile)) return;
+
+    return array_filter(
+      explode(";", preg_replace(
         [
           "/ ENGINE=\w+/",
           "/--.*\n/",
@@ -56,24 +141,41 @@ class Pool
           "",
         ],
         file_get_contents($schemaFile)
-      ));
-      $sqlque = array_filter($sqlque, function ($entry) {
+      )),
+      function ($entry) {
         return !!strlen($entry);
-      });
-
-      $promises = [];
-      foreach ($sqlque as $sql) {
-        $promises[] = self::$pool[0]->query($sql)->then(function (\Clue\React\SQLite\Result $result) {
-          echo "Query {$result->insertId} OK, {$result->changed} row(s) changed" . PHP_EOL;
-        });
       }
-      \React\Async\await(\React\Promise\all($promises));
-    }
+    );
+  }
 
-    for ($p = 1; $p < self::$poolSize; $p++) {
-      self::$pool[$p] = new Connection($dbFile, $onError, $pragma);
-      self::$poolRequestCounter[$p] = 0;
-    }
+  static private function sqlQueFromCurrentSchema()
+  {
+    $current = [];
+
+    $promises[] = self::$pool[0]->query("SELECT name, sql FROM sqlite_master WHERE ( type='table' AND name not like 'sqlite%' )")->then(function ($result) use (&$current) {
+      foreach ($result->rows as $entry) {
+        $current[$entry['name']] = tools::trimSql($entry['sql']);
+      }
+    });
+
+    \React\Async\await(\React\Promise\all($promises));
+
+    return $current;
+  }
+
+  static private function onEvent($message)
+  {
+    if (is_callable(self::$onEvent))
+      call_user_func(self::$onEvent, $message);
+    else
+      echo $message . PHP_EOL;
+  }
+
+  static function getPragma(string $name)
+  {
+    return \React\Async\await(self::$pool[0]->query("PRAGMA $name")->then(function ($result) use ($name) {
+      return $result->rows[0][$name];
+    }));
   }
 
   static function statistic(): array

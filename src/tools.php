@@ -29,4 +29,9 @@ class tools
     }
     return 'NULL';
   }
+
+  static function trimSql(string $sql)
+  {
+    return preg_replace('/[ \n\r\0\x0B\t]+/', " ", $sql);
+  }
 }

@@ -59,6 +59,11 @@ class Connection implements \Evenement\EventEmitterInterface
     $this->connection->exec('PRAGMA optimize;');
   }
 
+  public function exec($sql): \React\Promise\PromiseInterface
+  {
+    return $this->connection->exec($sql);
+  }
+
   public function query($sql, $params = []): \React\Promise\PromiseInterface
   {
     return $this->connection->query($sql, $params)->then(
