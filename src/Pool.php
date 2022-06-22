@@ -57,6 +57,12 @@ class Pool
       self::$pool[$p] = new Connection($dbFile, $onError, $pragma);
       self::$poolRequestCounter[$p] = 0;
     }
+
+    self::onEvent(sprintf(
+      "Opend: '%s' with %d child processes",
+      $dbFile,
+      self::$poolSize
+    ));
   }
 
   static private function createFromSchema(string $schemaFile)
