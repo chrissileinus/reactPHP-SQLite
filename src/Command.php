@@ -239,11 +239,12 @@ class Command extends Pool
       if (preg_match("/^(?<name>[^\[\]]+)(?:\[(?<condition>.+)\]){0,1}$/", $key, $match)) {
         extract($match);
         $condition = isset($condition) ? $condition : "=";
-        if ($condition == 'IN') {
+        if ($condition == '!IN') $condition = 'NOT IN';
+        if ($condition == 'IN' || $condition == 'NOT IN') {
           foreach ($value as &$entry) {
             $entry = tools::quote($entry);
           }
-          return " `{$name}` IN (" . implode(", ", $value) . ")";
+          return " `{$name}` {$condition} (" . implode(", ", $value) . ")";
         }
         return " `{$name}` {$condition} " . tools::quote($value);
       }
