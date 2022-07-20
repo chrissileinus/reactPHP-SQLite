@@ -61,7 +61,15 @@ class Connection implements \Evenement\EventEmitterInterface
 
   public function exec($sql): \React\Promise\PromiseInterface
   {
-    return $this->connection->exec($sql);
+    return $this->connection->exec($sql)->then(
+      null,
+      function (\Throwable $th) use ($sql) {
+        if (is_callable($this->onError)) {
+          return call_user_func($this->onError, $th, $sql);
+        }
+        throw $th;
+      }
+    );
   }
 
   public function query($sql, $params = []): \React\Promise\PromiseInterface
