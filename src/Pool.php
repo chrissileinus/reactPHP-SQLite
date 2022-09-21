@@ -215,6 +215,9 @@ class Pool
     return $callback($connection)->then(function ($result) use ($pointer) {
       self::$poolRequestCounter[$pointer]--;
       return $result;
+    }, function ($e) use ($pointer) {
+      self::$poolRequestCounter[$pointer]--;
+      return $e;
     });
   }
 
