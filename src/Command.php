@@ -22,6 +22,22 @@ class Command extends Pool
     });
   }
 
+  static function vacuum(): \React\Promise\PromiseInterface
+  {
+    $time = microtime(true);
+    return self::query('vacuum')->then(function () use ($time) {
+      return microtime(true) - $time;
+    });
+  }
+
+  static function optimize(): \React\Promise\PromiseInterface
+  {
+    $time = microtime(true);
+    return self::query('pragma optimize')->then(function () use ($time) {
+      return microtime(true) - $time;
+    });
+  }
+
   protected static function tableName($table): string
   {
     if (is_string($table)) return "`{$table}`";

@@ -28,6 +28,7 @@ class Connection implements \Evenement\EventEmitterInterface
     'busy_timeout' => '60000',
     'temp_store' => 'memory',
     'mmap_size' => '30000000000',
+    'auto_vacuum' => 'NONE',
   ];
 
   function __construct(string $dbFile, callable $onError = null, array $pragma = [])
@@ -44,7 +45,11 @@ class Connection implements \Evenement\EventEmitterInterface
       $this->emit('close');
     });
 
-    if (!$pragma) $pragma = [];
+    $this->execPragma($pragma);
+  }
+
+  private function execPragma(array $pragma = [])
+  {
     foreach (self::PRAGMAdefault as $key => $value) {
       $pragma[$key] ??= $value;
     }
@@ -72,10 +77,14 @@ class Connection implements \Evenement\EventEmitterInterface
     );
   }
 
-  public function query($sql, $params = []): \React\Promise\PromiseInterface
+  public function query($sql, $params = [], float $estimatedRuntime = null): \React\Promise\PromiseInterface
   {
+    $microtime = microtime(true);
+
     return $this->connection->query($sql, $params)->then(
-      function (SQLite\Result $result) {
+      function (SQLite\Result $result) use ($sql, $microtime, $estimatedRuntime) {
+        $runtime = microtime(true) - $microtime;
+        if ($runtime >= $estimatedRuntime) $this->emit('query', [$runtime, $sql]);
         return $result;
       },
       function (\Throwable $th) use ($sql) {

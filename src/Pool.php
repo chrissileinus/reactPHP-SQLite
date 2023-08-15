@@ -22,7 +22,14 @@ class Pool
   private static $poolPointer = 0;
   private static $poolRequestCounter = [];
   private static $poolConnectionSelector = self::CS_BY_LOAD;
+
+  private static $pageSize;
+  private static $pageCount;
+  private static $pageFreeCount;
+
   private static $onEvent = null;
+
+  public static $estimatedQueryRuntime = null;
 
   /**
    * Initialize the connections
@@ -34,10 +41,11 @@ class Pool
    * @param  string|null   $schemaFile
    * @return void
    */
-  static function init(string $dbFile, int $poolSize = 5, string $connectionSelector = self::CS_BY_LOAD, callable $onEvent = null, callable $onError = null, string $schemaFile = null, array $pragma = [])
+  static function init(string $dbFile, int $poolSize = 5, string $connectionSelector = self::CS_BY_LOAD, callable $onEvent = null, callable $onError = null, string $schemaFile = null, array $pragma = [], float $estimatedQueryRuntime = 1.0)
   {
     self::$poolSize = $poolSize;
     self::$poolConnectionSelector = $connectionSelector;
+    self::$estimatedQueryRuntime = $estimatedQueryRuntime;
 
     self::$onEvent = $onEvent;
 
@@ -46,16 +54,34 @@ class Pool
     self::$pool[0] = new Connection($dbFile, $onError, $pragma);
     self::$poolRequestCounter[0] = 0;
 
+    self::onEvent("Init");
+
     // Create Database
     if (!$dbFileExist) {
+      self::onEvent("Create Database");
       \React\Async\await(self::createFromSchema($schemaFile));
     }
 
-    self::upgradeFromSchema($schemaFile);
+    if ($schemaFile) {
+      self::onEvent("Upgrade Schema");
+      self::upgradeFromSchema($schemaFile);
+    }
 
-    for ($p = 1; $p < self::$poolSize; $p++) {
-      self::$pool[$p] = new Connection($dbFile, $onError, $pragma);
-      self::$poolRequestCounter[$p] = 0;
+
+    self::onEvent("Open child processes");
+    for ($pointer = 1; $pointer < self::$poolSize; $pointer++) {
+      self::$pool[$pointer] = new Connection($dbFile, $onError, $pragma);
+      self::$poolRequestCounter[$pointer] = 0;
+    }
+
+    for ($pointer = 0; $pointer < self::$poolSize; $pointer++) {
+      self::$pool[$pointer]->on('query', function (float $inSeconds, string $sql) {
+        self::onEvent(sprintf(
+          "slow Query: done in %.2f sec.\n %s",
+          $inSeconds,
+          $sql
+        ));
+      });
     }
 
     self::onEvent(sprintf(
@@ -186,10 +212,25 @@ class Pool
 
   static function statistic(): array
   {
-    return [
+    $stat = [
       'size' => self::$poolSize,
       'counter' => self::$poolRequestCounter,
+      'pageSize' => self::$pageSize,
+      'pageCount' => self::$pageCount,
+      'pageFreeCount' => self::$pageFreeCount,
     ];
+
+    self::query('PRAGMA page_size')->then(function ($result) {
+      self::$pageSize       = $result->rows[0]['page_size'];
+    });
+    self::query('PRAGMA page_count')->then(function ($result) {
+      self::$pageCount      = $result->rows[0]['page_count'];
+    });
+    self::query('PRAGMA freelist_count')->then(function ($result) {
+      self::$pageFreeCount  = $result->rows[0]['freelist_count'];
+    });
+
+    return $stat;
   }
 
   static private function shiftPointer()
@@ -212,7 +253,7 @@ class Pool
     $pointer = self::shiftPointer();
     self::$poolRequestCounter[$pointer]++;
     $connection = self::$pool[$pointer];
-    return $callback($connection)->then(function ($result) use ($pointer) {
+    return $callback($connection, $pointer)->then(function ($result) use ($pointer) {
       self::$poolRequestCounter[$pointer]--;
       return $result;
     }, function ($e) use ($pointer) {
@@ -228,12 +269,14 @@ class Pool
    * success or will reject with an `Exception` on error. 
    *
    * @param  string                          $query
+   * @param  float                           $estimatedRuntime
    * @return \React\Promise\PromiseInterface
    */
-  static function query(string $sql): \React\Promise\PromiseInterface
+  static function query(string $sql, float $estimatedRuntime = null): \React\Promise\PromiseInterface
   {
-    return self::pooledCallbackPromise(function (Connection $connection) use ($sql) {
-      return $connection->query($sql);
+    if ($estimatedRuntime == null) $estimatedRuntime = self::$estimatedQueryRuntime;
+    return self::pooledCallbackPromise(function (Connection $connection) use ($sql, $estimatedRuntime) {
+      return $connection->query($sql, [], $estimatedRuntime);
     });
   }
 
