@@ -84,7 +84,7 @@ class Connection implements \Evenement\EventEmitterInterface
     return $this->connection->query($sql, $params)->then(
       function (SQLite\Result $result) use ($sql, $microtime, $estimatedRuntime) {
         $runtime = microtime(true) - $microtime;
-        if ($runtime >= $estimatedRuntime) $this->emit('query', [$runtime, $sql]);
+        if ($estimatedRuntime && $runtime >= $estimatedRuntime) $this->emit('query', [$runtime, $sql]);
         return $result;
       },
       function (\Throwable $th) use ($sql) {
